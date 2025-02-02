@@ -147,6 +147,99 @@ const uint8_t keycode2ascii [57][2] = {
     {'/', '?'} /* HID_KEY_SLASH           */
 };
 
+// Add these near top with other global variables
+static hid_host_device_handle_t s_keyboard_handle = NULL;
+static bool caps_lock = false;
+static bool num_lock = false;
+static bool scroll_lock = false;
+
+// LED bitmask definitions
+#define HID_LED_NUM_LOCK     (1 << 0)
+#define HID_LED_CAPS_LOCK    (1 << 1)
+#define HID_LED_SCROLL_LOCK  (1 << 2)
+
+
+
+static uint8_t find_led_report_id(const uint8_t *desc, size_t len) {
+    uint8_t report_id = 0;
+    for (size_t i = 0; i < len; ) {
+        uint8_t tag = desc[i] & 0xFC;   // Get item type
+        uint8_t size_code = desc[i] & 0x03;
+        uint8_t size = (size_code == 3) ? 4 : size_code + 1;
+
+        if (i + size > len) break;  // Prevent out-of-bounds access
+
+        if (tag == 0x04) {  // Usage Page (Global Item)
+            uint32_t usage_page = 0;
+            memcpy(&usage_page, &desc[i+1], size-1);
+
+            if (usage_page == 0x08) {  // 0x08 for LEDs
+                ESP_LOGI(TAG, "✅ LED Usage Page found!");
+            }
+        }
+
+        if (tag == 0x85 && size == 2) {  // Report ID (0x85)
+            report_id = desc[i+1];
+            ESP_LOGI(TAG, "✅ Found Report ID: 0x%02X", report_id);
+            break;  // Stop once we find the report ID
+        }
+
+        i += size;
+    }
+
+    return report_id;
+}
+// Add this function to handle LED updates
+static void update_leds() {
+    if (s_keyboard_handle == NULL) {
+        ESP_LOGW(TAG, " No keyboard handle available!");
+        return;
+    }
+
+    uint8_t report_data = 0;
+    report_data |= caps_lock ? HID_LED_CAPS_LOCK : 0;
+    report_data |= num_lock ? HID_LED_NUM_LOCK : 0;
+    report_data |= scroll_lock ? HID_LED_SCROLL_LOCK : 0;
+
+//    static uint8_t report_id = 0;
+//    if (report_id == 0) {
+//        // Find the report ID if not set yet
+//        size_t desc_len;
+//        const uint8_t *report_desc = hid_host_get_report_descriptor(s_keyboard_handle, &desc_len);
+//        if (report_desc) {
+//            report_id = find_led_report_id(report_desc, desc_len);
+//        }
+//    }
+
+
+
+
+    //  Clear USB endpoint before sending LED update
+    hid_host_dev_params_t dev_params;
+    if (ESP_OK == hid_host_device_get_params(s_keyboard_handle, &dev_params)) {
+        usb_device_handle_t usb_dev_handle;
+        if (usb_host_device_open(NULL, dev_params.addr, &usb_dev_handle) == ESP_OK) {
+            usb_host_endpoint_clear(usb_dev_handle, 0); // Reset endpoint 0
+            usb_host_device_close(NULL, usb_dev_handle);
+        }
+    }
+
+    //  Send the LED control report
+    esp_err_t err = hid_class_request_set_report(
+        s_keyboard_handle,
+        HID_REPORT_TYPE_OUTPUT,
+        0,  // Report ID (Caps Lock LED)
+        &report_data,
+        sizeof(report_data)
+    );
+
+    if (err == ESP_OK) {
+        ESP_LOGI(TAG, "✅ Keyboard LED updated: 0x%02X", report_data);
+    } else {
+        ESP_LOGE(TAG, "❌ Failed to set LEDs: %s", esp_err_to_name(err));
+    }
+}
+
 /**
  * @brief Makes new line depending on report output protocol type
  *
@@ -203,14 +296,18 @@ static inline bool hid_keyboard_get_char(uint8_t modifier,
 {
     uint8_t mod = (hid_keyboard_is_modifier_shift(modifier)) ? 1 : 0;
 
-    if ((key_code >= HID_KEY_A) && (key_code <= HID_KEY_SLASH)) {
+    if ((key_code >= HID_KEY_A) && (key_code <= HID_KEY_Z)) {
+        // Apply Caps Lock only to alphabetic keys
+        if (caps_lock) {
+            mod = !mod; // Invert shift effect
+        }
         *key_char = keycode2ascii[key_code][mod];
     } else {
-        // All other key pressed
-        return false;
+        // Other keys (numbers & symbols)
+        *key_char = keycode2ascii[key_code][mod];
     }
 
-    return true;
+    return (*key_char != 0);
 }
 
 /**
@@ -243,22 +340,27 @@ static void key_event_callback(key_event_t *key_event)
 
     hid_print_new_device_report_header(HID_PROTOCOL_KEYBOARD);
 
-    // if (key_event->state == KEY_STATE_PRESSED &&
-    //     key_event->key_code == HID_KEY_CAPS_LOCK) 
-    // {
-    //     caps_lock_on = !caps_lock_on;
-
-    //     // Pass the HID device handle here (store it when the device connects)
-    //     set_keyboard_leds(caps_lock_on, s_my_hid_device_handle);
-    // }
-
-
-    if (KEY_STATE_PRESSED == key_event->state) {
-        if (hid_keyboard_get_char(key_event->modifier,
-                                  key_event->key_code, &key_char)) {
-
-            hid_keyboard_print_char(key_char);
-
+    if (key_event->state == KEY_STATE_PRESSED) {
+        // Handle lock keys
+        switch (key_event->key_code) {
+            case HID_KEY_CAPS_LOCK:
+                caps_lock = !caps_lock;
+                update_leds();
+                break;
+            case HID_KEY_NUM_LOCK:
+                num_lock = !num_lock;
+                update_leds();
+                break;
+            case HID_KEY_SCROLL_LOCK:
+                scroll_lock = !scroll_lock;
+                update_leds();
+                break;
+            default:
+                if (hid_keyboard_get_char(key_event->modifier,
+                                        key_event->key_code, &key_char)) {
+                    hid_keyboard_print_char(key_char);
+                }
+                break;
         }
     }
 }
@@ -405,10 +507,21 @@ void hid_host_interface_callback(hid_host_device_handle_t hid_device_handle,
 
         break;
     case HID_HOST_INTERFACE_EVENT_DISCONNECTED:
-        ESP_LOGI(TAG, "HID Device, protocol '%s' DISCONNECTED",
-                 hid_proto_name_str[dev_params.proto]);
-        ESP_ERROR_CHECK(hid_host_device_close(hid_device_handle));
-        break;
+            ESP_LOGI(TAG, "HID Device, protocol '%s' DISCONNECTED",
+                     hid_proto_name_str[dev_params.proto]);
+            if (s_keyboard_handle == hid_device_handle) {
+                s_keyboard_handle = NULL;
+                caps_lock = false;
+                num_lock = false;
+                scroll_lock = false;
+            }
+            ESP_ERROR_CHECK(hid_host_device_close(hid_device_handle));
+            break;
+//    case HID_HOST_INTERFACE_EVENT_DISCONNECTED:
+//        ESP_LOGI(TAG, "HID Device, protocol '%s' DISCONNECTED",
+//                 hid_proto_name_str[dev_params.proto]);
+//        ESP_ERROR_CHECK(hid_host_device_close(hid_device_handle));
+//        break;
     case HID_HOST_INTERFACE_EVENT_TRANSFER_ERROR:
         ESP_LOGI(TAG, "HID Device, protocol '%s' TRANSFER_ERROR",
                  hid_proto_name_str[dev_params.proto]);
@@ -419,6 +532,8 @@ void hid_host_interface_callback(hid_host_device_handle_t hid_device_handle,
         break;
     }
 }
+
+
 
 /**
  * @brief USB HID Host Device event
@@ -438,6 +553,11 @@ void hid_host_device_event(hid_host_device_handle_t hid_device_handle,
     case HID_HOST_DRIVER_EVENT_CONNECTED:
         ESP_LOGI(TAG, "HID Device, protocol '%s' CONNECTED",
                  hid_proto_name_str[dev_params.proto]);
+
+        // Store keyboard handle when connected
+        if (dev_params.proto == HID_PROTOCOL_KEYBOARD) {
+            s_keyboard_handle = hid_device_handle;
+        }
 
         const hid_host_device_config_t dev_config = {
             .callback = hid_host_interface_callback,
@@ -614,6 +734,22 @@ void app_main(void)
                 hid_host_device_event(evt_queue.hid_host_device.handle,
                                       evt_queue.hid_host_device.event,
                                       evt_queue.hid_host_device.arg);
+
+             // 🔥 Simulate a Caps Lock Key Press
+                 key_event_t fake_caps_lock_event = {
+                     .state = KEY_STATE_PRESSED,
+                     .modifier = 0,
+                     .key_code = HID_KEY_CAPS_LOCK
+                 };
+
+                 key_event_callback(&fake_caps_lock_event);
+
+                 // 🔥 Simulate Caps Lock Release
+                 vTaskDelay(pdMS_TO_TICKS(100));
+                 fake_caps_lock_event.state = KEY_STATE_RELEASED;
+                 key_event_callback(&fake_caps_lock_event);
+
+                 ESP_LOGI(TAG, "✅ Simulated Caps Lock event.");
             }
         }
     }
