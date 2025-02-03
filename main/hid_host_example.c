@@ -22,6 +22,9 @@
 #include "usb/hid_usage_keyboard.h"
 #include "usb/hid_usage_mouse.h"
 
+#include "ble_hid_keyboard.h"
+
+
 /* GPIO Pin number for quit from example logic */
 #define APP_QUIT_PIN                GPIO_NUM_0
 
@@ -160,35 +163,35 @@ static bool scroll_lock = false;
 
 
 
-static uint8_t find_led_report_id(const uint8_t *desc, size_t len) {
-    uint8_t report_id = 0;
-    for (size_t i = 0; i < len; ) {
-        uint8_t tag = desc[i] & 0xFC;   // Get item type
-        uint8_t size_code = desc[i] & 0x03;
-        uint8_t size = (size_code == 3) ? 4 : size_code + 1;
-
-        if (i + size > len) break;  // Prevent out-of-bounds access
-
-        if (tag == 0x04) {  // Usage Page (Global Item)
-            uint32_t usage_page = 0;
-            memcpy(&usage_page, &desc[i+1], size-1);
-
-            if (usage_page == 0x08) {  // 0x08 for LEDs
-                ESP_LOGI(TAG, "✅ LED Usage Page found!");
-            }
-        }
-
-        if (tag == 0x85 && size == 2) {  // Report ID (0x85)
-            report_id = desc[i+1];
-            ESP_LOGI(TAG, "✅ Found Report ID: 0x%02X", report_id);
-            break;  // Stop once we find the report ID
-        }
-
-        i += size;
-    }
-
-    return report_id;
-}
+//static uint8_t find_led_report_id(const uint8_t *desc, size_t len) {
+//    uint8_t report_id = 0;
+//    for (size_t i = 0; i < len; ) {
+//        uint8_t tag = desc[i] & 0xFC;   // Get item type
+//        uint8_t size_code = desc[i] & 0x03;
+//        uint8_t size = (size_code == 3) ? 4 : size_code + 1;
+//
+//        if (i + size > len) break;  // Prevent out-of-bounds access
+//
+//        if (tag == 0x04) {  // Usage Page (Global Item)
+//            uint32_t usage_page = 0;
+//            memcpy(&usage_page, &desc[i+1], size-1);
+//
+//            if (usage_page == 0x08) {  // 0x08 for LEDs
+//                ESP_LOGI(TAG, "✅ LED Usage Page found!");
+//            }
+//        }
+//
+//        if (tag == 0x85 && size == 2) {  // Report ID (0x85)
+//            report_id = desc[i+1];
+//            ESP_LOGI(TAG, "✅ Found Report ID: 0x%02X", report_id);
+//            break;  // Stop once we find the report ID
+//        }
+//
+//        i += size;
+//    }
+//
+//    return report_id;
+//}
 // Add this function to handle LED updates
 static void update_leds() {
     if (s_keyboard_handle == NULL) {
@@ -392,6 +395,8 @@ static inline bool key_found(const uint8_t *const src,
  */
 static void hid_host_keyboard_report_callback(const uint8_t *const data, const int length)
 {
+
+
     hid_keyboard_input_report_boot_t *kb_report = (hid_keyboard_input_report_boot_t *)data;
 
     if (length < sizeof(hid_keyboard_input_report_boot_t)) {
@@ -402,6 +407,8 @@ static void hid_host_keyboard_report_callback(const uint8_t *const data, const i
     key_event_t key_event;
 
     for (int i = 0; i < HID_KEYBOARD_KEY_MAX; i++) {
+
+
 
         // key has been released verification
         if (prev_keys[i] > HID_KEY_ERROR_UNDEFINED &&
@@ -420,6 +427,12 @@ static void hid_host_keyboard_report_callback(const uint8_t *const data, const i
             key_event.state = KEY_STATE_PRESSED;
             key_event_callback(&key_event);
         }
+
+        if (key_event.state == KEY_STATE_PRESSED) {
+                       ble_hid_send_key(key_event.modifier, key_event.key_code);
+                   } else if (key_event.state == KEY_STATE_RELEASED) {
+                       ble_hid_release_key(key_event.key_code);
+                   }
     }
 
     memcpy(prev_keys, &kb_report->key, HID_KEYBOARD_KEY_MAX);
@@ -711,6 +724,9 @@ void app_main(void)
 
     // Create queue
     app_event_queue = xQueueCreate(10, sizeof(app_event_queue_t));
+
+    // Initialize BLE HID keyboard
+        ble_hid_keyboard_init();
 
     ESP_LOGI(TAG, "Waiting for HID Device to be connected");
 
