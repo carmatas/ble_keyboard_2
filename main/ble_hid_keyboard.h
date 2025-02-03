@@ -12,4 +12,6 @@ void ble_hid_send_key(uint8_t modifier, uint8_t key_code);
 // Releases all keys
 void ble_hid_release_key(uint8_t key_code);
 
+void ble_hid_update_modifiers(uint8_t modifier);
+
 #endif

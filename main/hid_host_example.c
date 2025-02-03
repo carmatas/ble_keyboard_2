@@ -393,50 +393,68 @@ static inline bool key_found(const uint8_t *const src,
  * @param[in] data    Pointer to input report data buffer
  * @param[in] length  Length of input report data buffer
  */
-static void hid_host_keyboard_report_callback(const uint8_t *const data, const int length)
-{
-
-
+static void hid_host_keyboard_report_callback(const uint8_t *const data, const int length) {
     hid_keyboard_input_report_boot_t *kb_report = (hid_keyboard_input_report_boot_t *)data;
 
     if (length < sizeof(hid_keyboard_input_report_boot_t)) {
         return;
     }
 
-    static uint8_t prev_keys[HID_KEYBOARD_KEY_MAX] = { 0 };
+    static uint8_t prev_keys[HID_KEYBOARD_KEY_MAX] = {0};
+    static uint8_t prev_modifier = 0;
     key_event_t key_event;
 
+    // ✅ **Handle Modifier Keys First**
+    if (kb_report->modifier.val != prev_modifier) {
+        uint8_t modifier_diff = kb_report->modifier.val ^ prev_modifier; // Find changed modifiers
+        for (int i = 0; i < 8; i++) {
+            if (modifier_diff & (1 << i)) {
+                key_event.modifier = (1 << i);
+                key_event.key_code = 0; // Modifiers have no key codes
+                key_event.state = (kb_report->modifier.val & (1 << i)) ? KEY_STATE_PRESSED : KEY_STATE_RELEASED;
+                key_event_callback(&key_event);
+
+                if (key_event.state == KEY_STATE_PRESSED) {
+                    ble_hid_update_modifiers(kb_report->modifier.val);
+                } else {
+                    ble_hid_update_modifiers(kb_report->modifier.val);
+                }
+            }
+        }
+        prev_modifier = kb_report->modifier.val;
+    }
+
+    // ✅ **Handle Normal Key Presses & Releases**
     for (int i = 0; i < HID_KEYBOARD_KEY_MAX; i++) {
-
-
-
-        // key has been released verification
+        // **Key Released**
         if (prev_keys[i] > HID_KEY_ERROR_UNDEFINED &&
-                !key_found(kb_report->key, prev_keys[i], HID_KEYBOARD_KEY_MAX)) {
+            !key_found(kb_report->key, prev_keys[i], HID_KEYBOARD_KEY_MAX)) {
             key_event.key_code = prev_keys[i];
-            key_event.modifier = 0;
+            key_event.modifier = 0; // Modifiers handled separately
             key_event.state = KEY_STATE_RELEASED;
             key_event_callback(&key_event);
+
+            // ✅ **Update BLE HID**
+            ble_hid_release_key(key_event.key_code);
         }
 
-        // key has been pressed verification
+        // **Key Pressed**
         if (kb_report->key[i] > HID_KEY_ERROR_UNDEFINED &&
-                !key_found(prev_keys, kb_report->key[i], HID_KEYBOARD_KEY_MAX)) {
+            !key_found(prev_keys, kb_report->key[i], HID_KEYBOARD_KEY_MAX)) {
             key_event.key_code = kb_report->key[i];
             key_event.modifier = kb_report->modifier.val;
             key_event.state = KEY_STATE_PRESSED;
             key_event_callback(&key_event);
-        }
 
-        if (key_event.state == KEY_STATE_PRESSED) {
-                       ble_hid_send_key(key_event.modifier, key_event.key_code);
-                   } else if (key_event.state == KEY_STATE_RELEASED) {
-                       ble_hid_release_key(key_event.key_code);
-                   }
+            // ✅ **Update BLE HID**
+            ble_hid_send_key(key_event.modifier, key_event.key_code);
+        }
     }
 
+    // ✅ **Update Previous Key State**
     memcpy(prev_keys, &kb_report->key, HID_KEYBOARD_KEY_MAX);
 }
+
 
 /**
  * @brief USB HID Host Mouse Interface report callback handler

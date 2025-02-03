@@ -52,10 +52,12 @@
 #define HID_DEMO_TAG "HID_DEMO"
 
 static const char *TAG = "BLE_HID_KEYBOARD";
-
-static uint8_t pressed_keys[6] = {0}; // Holds currently pressed keys
-
 static uint16_t hid_conn_id = 0;
+
+#define MAX_KEYS 6
+static uint8_t pressed_keys[MAX_KEYS] = {0};// Holds currently pressed keys
+static uint8_t current_modifier = 0;
+
 static bool sec_conn = false;
 static bool send_volum_up = false;
 #define CHAR_DECLARATION_SIZE   (sizeof(uint8_t))
@@ -278,19 +280,17 @@ void ble_hid_keyboard_init()
 //    //esp_hidd_send_keyboard_value(hid_conn_id, 0, &key_vaule, 1);
 //}
 void ble_hid_send_key(uint8_t modifier, uint8_t key_code) {
-//    if (hid_conn_id == 0) {
-//        ESP_LOGW(TAG, "BLE HID device is not initialized or not connected");
+//    if (s_hid_dev == NULL) {
+//        ESP_LOGW(TAG, "BLE HID device is not initialized");
 //        return;
 //    }
 
-ESP_LOGW(TAG, "BLE HID device connection id",hid_conn_id);
+    ESP_LOGI(TAG, "Sending Key Press: Modifier=0x%02X, Keycode=0x%02X", modifier, key_code);
 
-
-
-    // Find an empty slot to store the key
+    // Find an empty slot for the key
     bool key_stored = false;
-    for (int i = 0; i < 6; i++) {
-        if (pressed_keys[i] == 0) { // Empty slot
+    for (int i = 0; i < MAX_KEYS; i++) {
+        if (pressed_keys[i] == 0) {
             pressed_keys[i] = key_code;
             key_stored = true;
             break;
@@ -302,24 +302,21 @@ ESP_LOGW(TAG, "BLE HID device connection id",hid_conn_id);
         return;
     }
 
-    ESP_LOGI(TAG, "Sending key press: Modifier=0x%02X, Keycode=0x%02X", modifier, key_code);
-    esp_hidd_send_keyboard_value(hid_conn_id, modifier, pressed_keys, 6);
+    // Update BLE HID state
+    esp_hidd_send_keyboard_value(hid_conn_id, current_modifier, pressed_keys, MAX_KEYS);
 }
 
 // Function to send key release event
 void ble_hid_release_key(uint8_t key_code) {
-//    if (hid_conn_id == 0) {
-//        ESP_LOGW(TAG, "BLE HID device is not initialized or not connected");
+//    if (s_hid_dev == NULL) {
+//        ESP_LOGW(TAG, "BLE HID device is not initialized");
 //        return;
 //    }
 
-
     bool key_found = false;
-
-    // Search for the key to be released and remove it
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < MAX_KEYS; i++) {
         if (pressed_keys[i] == key_code) {
-            pressed_keys[i] = 0; // Remove the key
+            pressed_keys[i] = 0; // Remove key
             key_found = true;
             break;
         }
@@ -331,7 +328,19 @@ void ble_hid_release_key(uint8_t key_code) {
     }
 
     // Send updated key report
-    ESP_LOGI(TAG, "Releasing key: 0x%02X", key_code);
-    esp_hidd_send_keyboard_value(hid_conn_id, 0, pressed_keys, 6);
+    ESP_LOGI(TAG, "Releasing Key: 0x%02X", key_code);
+    esp_hidd_send_keyboard_value(hid_conn_id, current_modifier, pressed_keys, MAX_KEYS);
+}
+
+void ble_hid_update_modifiers(uint8_t modifier) {
+//    if (s_hid_dev == NULL) {
+//        ESP_LOGW(TAG, "BLE HID device is not initialized");
+//        return;
+//    }
+    current_modifier = modifier;
+
+    // Send updated key report with modifiers
+    ESP_LOGI(TAG, "Updating Modifiers: 0x%02X", modifier);
+    esp_hidd_send_keyboard_value(hid_conn_id, current_modifier, pressed_keys, MAX_KEYS);
 }
 
