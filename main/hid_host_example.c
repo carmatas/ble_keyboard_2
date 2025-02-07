@@ -23,6 +23,7 @@
 #include "usb/hid_usage_mouse.h"
 
 #include "ble_hid_keyboard.h"
+#include "led.h"
 
 
 /* GPIO Pin number for quit from example logic */
@@ -742,6 +743,8 @@ void app_main(void)
 
     // Create queue
     app_event_queue = xQueueCreate(10, sizeof(app_event_queue_t));
+
+    start_led();
 
     // Initialize BLE HID keyboard
         ble_hid_keyboard_init();
