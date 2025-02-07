@@ -65,6 +65,10 @@ static bool send_volum_up = false;
 static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *param);
 
 #define HIDD_DEVICE_NAME            "HID v2"
+
+extern bool ble_connected; // Make it accessible
+extern TaskHandle_t led_task_handle;
+
 static uint8_t hidd_service_uuid128[] = {
     /* LSB <--------------------------------------------------------------------------------> MSB */
     //first uuid, 16bit, [12],[13] is the value
@@ -119,12 +123,20 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
 		case ESP_HIDD_EVENT_BLE_CONNECT: {
             ESP_LOGI(HID_DEMO_TAG, "ESP_HIDD_EVENT_BLE_CONNECT");
             hid_conn_id = param->connect.conn_id;
+            ble_connected = true; // ✅ Update the variable when BLE connects
+                if (led_task_handle) {
+                xTaskNotifyGive(led_task_handle);  // 🔹 Wake up LED task
+            }
             break;
         }
         case ESP_HIDD_EVENT_BLE_DISCONNECT: {
             sec_conn = false;
             ESP_LOGI(HID_DEMO_TAG, "ESP_HIDD_EVENT_BLE_DISCONNECT");
             esp_ble_gap_start_advertising(&hidd_adv_params);
+            ble_connected = false; // ✅ Reset the variable when BLE disconnects
+            if (led_task_handle) {
+                xTaskNotifyGive(led_task_handle);  // 🔹 Wake up LED task
+            }
             break;
         }
         case ESP_HIDD_EVENT_BLE_VENDOR_REPORT_WRITE_EVT: {

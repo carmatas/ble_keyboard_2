@@ -3,6 +3,9 @@
 
 #include <stdint.h>
 
-void start_led();
+extern TaskHandle_t led_task_handle; // ✅ Extern declaration
 
+
+void start_led();
+void ws2812_blink_task(void *pvParameter);
 #endif
