@@ -30,6 +30,14 @@
 #include "esp_hid_common.h"
 #include "esp_hidd.h"
 
+#include "ble_hid_keyboard.h"
+#include "esp_hidd_api.h"
+#include "esp_mac.h"
+
+
+#include "nvs_flash.h"
+#include "nvs.h"
+#include "esp_log.h"
 /**
  * Brief:
  * This example Implemented BLE HID device profile related functions, in which the HID device
@@ -50,6 +58,9 @@
  */
 
 #define HID_DEMO_TAG "HID_DEMO"
+#define MAX_MAC_ADDRESSES 3
+#define NVS_NAMESPACE "storage"
+#define NVS_KEY "mac_index"
 
 static const char *TAG = "BLE_HID_KEYBOARD";
 static uint16_t hid_conn_id = 0;
@@ -68,6 +79,17 @@ static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *
 
 extern bool ble_connected; // Make it accessible
 extern TaskHandle_t led_task_handle;
+
+
+
+// Predefined MAC addresses (Modify these as needed)
+static uint8_t ble_mac_addresses[MAX_MAC_ADDRESSES][6] = {
+        {0xCC, 0xBA, 0x97, 0x0A, 0x1B, 0x41},  // Computer 1
+        {0xCC, 0xBA, 0x97, 0x0A, 0x1B, 0x3D},  // Computer 2
+        {0xCC, 0xBA, 0x97, 0x0A, 0x1B, 0x3E}   // Computer 3
+};
+
+int current_device_index = 0;
 
 static uint8_t hidd_service_uuid128[] = {
     /* LSB <--------------------------------------------------------------------------------> MSB */
@@ -211,6 +233,11 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
 
 void ble_hid_keyboard_init()
 {
+
+    set_next_mac_address();
+//    uint8_t new_mac[6] = {0xCC, 0xBA, 0x97, 0x0A, 0x1B, 0x41};
+//    esp_err_t err = esp_base_mac_addr_set(new_mac);
+
     esp_err_t ret;
 
     // Initialize NVS.
@@ -356,3 +383,46 @@ void ble_hid_update_modifiers(uint8_t modifier) {
     esp_hidd_send_keyboard_value(hid_conn_id, current_modifier, pressed_keys, MAX_KEYS);
 }
 
+
+void set_next_mac_address() {
+    nvs_handle_t nvs_handle;
+    esp_err_t err;
+    uint8_t mac_index = 0;  // Default index
+
+    // ✅ Initialize NVS Flash
+    err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        ESP_ERROR_CHECK(nvs_flash_init());
+    }
+
+    // ✅ Open NVS storage
+    err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &nvs_handle);
+    if (err != ESP_OK) {
+        ESP_LOGE("NVS", "Error (%s) opening NVS!", esp_err_to_name(err));
+        return;
+    }
+
+    // ✅ Read stored MAC index
+    err = nvs_get_u8(nvs_handle, NVS_KEY, &mac_index);
+    if (err == ESP_ERR_NVS_NOT_FOUND) {
+        ESP_LOGW("NVS", "MAC index not found, setting to 0");
+        mac_index = 0;
+    }
+
+    // ✅ Set new MAC address
+    ESP_ERROR_CHECK(esp_base_mac_addr_set(ble_mac_addresses[mac_index]));
+    current_device_index = mac_index;
+
+    ESP_LOGI("MAC_SWITCH", "Using MAC Address %d: %02X:%02X:%02X:%02X:%02X:%02X",
+             mac_index,
+             ble_mac_addresses[mac_index][0], ble_mac_addresses[mac_index][1],
+             ble_mac_addresses[mac_index][2], ble_mac_addresses[mac_index][3],
+             ble_mac_addresses[mac_index][4], ble_mac_addresses[mac_index][5]);
+
+    // ✅ Increment & Store next MAC index
+    mac_index = (mac_index + 1) % MAX_MAC_ADDRESSES;
+    nvs_set_u8(nvs_handle, NVS_KEY, mac_index);
+    nvs_commit(nvs_handle);
+    nvs_close(nvs_handle);
+}

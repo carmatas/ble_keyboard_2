@@ -24,6 +24,7 @@
 
 #include "ble_hid_keyboard.h"
 #include "led.h"
+#include "esp_system.h"
 
 
 /* GPIO Pin number for quit from example logic */
@@ -163,6 +164,28 @@ static bool scroll_lock = false;
 #define HID_LED_SCROLL_LOCK  (1 << 2)
 
 
+#define RESET_BUTTON_GPIO GPIO_NUM_7  // Change GPIO as needed
+
+void configure_reset_button() {
+    gpio_config_t io_conf = {
+        .pin_bit_mask = (1ULL << RESET_BUTTON_GPIO),
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .intr_type = GPIO_INTR_NEGEDGE  // Detect button press
+    };
+    gpio_config(&io_conf);
+}
+
+void check_reset_button_task(void *pvParameter) {
+    while (1) {
+        if (gpio_get_level(RESET_BUTTON_GPIO) == 0) {  // Button pressed
+            ESP_LOGI("RESET", "Button Pressed! Restarting ESP32...");
+            vTaskDelay(pdMS_TO_TICKS(100)); // Small debounce delay
+            esp_restart();  // Force restart
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));  // Poll every 100ms
+    }
+}
 
 //static uint8_t find_led_report_id(const uint8_t *desc, size_t len) {
 //    uint8_t report_id = 0;
@@ -747,6 +770,8 @@ void app_main(void)
     start_led();
 //   xTaskCreate(ws2812_blink_task, "LED Task", 4096, NULL, 2, &led_task_handle);
 
+        configure_reset_button();
+            xTaskCreate(check_reset_button_task, "reset_task", 2048, NULL, 2, NULL);
 
     // Initialize BLE HID keyboard
         ble_hid_keyboard_init();

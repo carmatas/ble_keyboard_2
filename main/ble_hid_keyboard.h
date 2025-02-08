@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+
+extern int current_device_index;
 // Initializes BLE HID keyboard
 void ble_hid_keyboard_init();
 
@@ -13,5 +15,7 @@ void ble_hid_send_key(uint8_t modifier, uint8_t key_code);
 void ble_hid_release_key(uint8_t key_code);
 
 void ble_hid_update_modifiers(uint8_t modifier);
+
+void set_next_mac_address();
 
 #endif

@@ -12,6 +12,9 @@ bool ble_connected = false; // Initially false, will be set true when BLE connec
 
 static led_strip_handle_t led_strip;
 
+extern int current_device_index;
+
+
 TaskHandle_t led_task_handle = NULL; // Store task handle
 
 void setup_ws2812() {
@@ -57,7 +60,19 @@ void ws2812_blink_task(void *pvParameter) {
         if (!ble_connected) {
             // 🔹 Blink BLUE when not connected
             while (!ble_connected) {  // ✅ Wait efficiently for BLE event
-                set_ws2812_brightness(0, 0, 255, LED_BRIGHTNESS);
+                switch (current_device_index) {
+                            case 0:
+                                set_ws2812_brightness(0, 0, 255, LED_BRIGHTNESS);  // 🔴 Red for PC 1
+                                break;
+                            case 1:
+                                set_ws2812_brightness(255, 255, 0, LED_BRIGHTNESS);  // 🔴 Red for PC 1
+                                break;
+                            case 2:
+                                set_ws2812_brightness(255, 255, 255, LED_BRIGHTNESS);  // 🔴 Red for PC 1
+                                break;
+                            default:
+                                set_ws2812_brightness(100, 0, 0, LED_BRIGHTNESS);
+                }
                 vTaskDelay(pdMS_TO_TICKS(BLINK_INTERVAL_MS));
                 set_ws2812_color(0, 0, 0);
                 vTaskDelay(pdMS_TO_TICKS(BLINK_INTERVAL_MS));
@@ -68,7 +83,20 @@ void ws2812_blink_task(void *pvParameter) {
         }
 
         // 🔹 Connected: Solid GREEN for 10s
-        set_ws2812_brightness(0, 255, 0, LED_BRIGHTNESS);
+//        set_ws2812_brightness(0, 255, 0, LED_BRIGHTNESS);
+        switch (current_device_index) {
+                                    case 0:
+                                        set_ws2812_brightness(0, 0, 255, LED_BRIGHTNESS);  // 🔴 Red for PC 1
+                                        break;
+                                    case 1:
+                                        set_ws2812_brightness(255, 255, 0, LED_BRIGHTNESS);  // 🔴 Red for PC 1
+                                        break;
+                                    case 2:
+                                        set_ws2812_brightness(255, 255, 255, LED_BRIGHTNESS);  // 🔴 Red for PC 1
+                                        break;
+                                    default:
+                                        set_ws2812_brightness(100, 0, 0, LED_BRIGHTNESS);
+                        }
         vTaskDelay(pdMS_TO_TICKS(10000));
 
         // 🔹 Then turn OFF
