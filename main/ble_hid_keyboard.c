@@ -89,7 +89,7 @@ static uint8_t ble_mac_addresses[MAX_MAC_ADDRESSES][6] = {
         {0xCC, 0xBA, 0x97, 0x0A, 0x1B, 0x3E}   // Computer 3
 };
 
-int current_device_index = 0;
+int32_t current_device_index = 0;
 
 static uint8_t hidd_service_uuid128[] = {
     /* LSB <--------------------------------------------------------------------------------> MSB */
@@ -234,18 +234,38 @@ static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param
 void ble_hid_keyboard_init()
 {
 
-    set_next_mac_address();
+//    set_next_mac_address();
 //    uint8_t new_mac[6] = {0xCC, 0xBA, 0x97, 0x0A, 0x1B, 0x41};
 //    esp_err_t err = esp_base_mac_addr_set(new_mac);
 
-    esp_err_t ret;
-
-    // Initialize NVS.
-    ret = nvs_flash_init();
-    if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
+      // ✅ Initialize NVS
+        esp_err_t ret;
         ret = nvs_flash_init();
-    }
+        if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+            ESP_ERROR_CHECK(nvs_flash_erase());
+            ESP_ERROR_CHECK(nvs_flash_init());
+        }
+
+        // ✅ Read last used MAC index from NVS
+        nvs_handle_t nvs_handle;
+        if (nvs_open(NVS_NAMESPACE, NVS_READWRITE, &nvs_handle) == ESP_OK) {
+            if (nvs_get_i32(nvs_handle, NVS_KEY, &current_device_index) != ESP_OK) {
+                current_device_index = 0;  // Default to first MAC if nothing is stored
+            }
+            nvs_close(nvs_handle);
+        }
+
+
+        ESP_ERROR_CHECK(esp_base_mac_addr_set(ble_mac_addresses[current_device_index]));
+
+            ESP_LOGI(HID_DEMO_TAG, "Using stored MAC[%d]: %02X:%02X:%02X:%02X:%02X:%02X",
+                     current_device_index,
+                     ble_mac_addresses[current_device_index][0], ble_mac_addresses[current_device_index][1],
+                     ble_mac_addresses[current_device_index][2], ble_mac_addresses[current_device_index][3],
+                     ble_mac_addresses[current_device_index][4], ble_mac_addresses[current_device_index][5]);
+
+
+
     ESP_ERROR_CHECK( ret );
 
     ESP_ERROR_CHECK(esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT));
@@ -385,44 +405,32 @@ void ble_hid_update_modifiers(uint8_t modifier) {
 
 
 void set_next_mac_address() {
+    // ✅ Load last used MAC index from NVS
     nvs_handle_t nvs_handle;
-    esp_err_t err;
-    uint8_t mac_index = 0;  // Default index
-
-    // ✅ Initialize NVS Flash
-    err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        ESP_ERROR_CHECK(nvs_flash_init());
+    esp_err_t err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &nvs_handle);
+    if (err == ESP_OK) {
+        err = nvs_get_i32(nvs_handle, NVS_KEY, &current_device_index);
+        if (err == ESP_ERR_NVS_NOT_FOUND) {
+            current_device_index = 0; // Default to first device
+        }
+    } else {
+        ESP_LOGE(HID_DEMO_TAG, "Failed to open NVS");
     }
 
-    // ✅ Open NVS storage
-    err = nvs_open(NVS_NAMESPACE, NVS_READWRITE, &nvs_handle);
-    if (err != ESP_OK) {
-        ESP_LOGE("NVS", "Error (%s) opening NVS!", esp_err_to_name(err));
-        return;
-    }
+    // ✅ Increment and cycle index
+    current_device_index = (current_device_index + 1) % MAX_MAC_ADDRESSES;
 
-    // ✅ Read stored MAC index
-    err = nvs_get_u8(nvs_handle, NVS_KEY, &mac_index);
-    if (err == ESP_ERR_NVS_NOT_FOUND) {
-        ESP_LOGW("NVS", "MAC index not found, setting to 0");
-        mac_index = 0;
-    }
-
-    // ✅ Set new MAC address
-    ESP_ERROR_CHECK(esp_base_mac_addr_set(ble_mac_addresses[mac_index]));
-    current_device_index = mac_index;
-
-    ESP_LOGI("MAC_SWITCH", "Using MAC Address %d: %02X:%02X:%02X:%02X:%02X:%02X",
-             mac_index,
-             ble_mac_addresses[mac_index][0], ble_mac_addresses[mac_index][1],
-             ble_mac_addresses[mac_index][2], ble_mac_addresses[mac_index][3],
-             ble_mac_addresses[mac_index][4], ble_mac_addresses[mac_index][5]);
-
-    // ✅ Increment & Store next MAC index
-    mac_index = (mac_index + 1) % MAX_MAC_ADDRESSES;
-    nvs_set_u8(nvs_handle, NVS_KEY, mac_index);
+    // ✅ Save updated index to NVS
+    nvs_set_i32(nvs_handle, NVS_KEY, current_device_index);
     nvs_commit(nvs_handle);
     nvs_close(nvs_handle);
+
+    // ✅ Apply new MAC address
+    ESP_ERROR_CHECK(esp_base_mac_addr_set(ble_mac_addresses[current_device_index]));
+
+    ESP_LOGI(HID_DEMO_TAG, "Switched to MAC[%d]: %02X:%02X:%02X:%02X:%02X:%02X",
+             current_device_index,
+             ble_mac_addresses[current_device_index][0], ble_mac_addresses[current_device_index][1],
+             ble_mac_addresses[current_device_index][2], ble_mac_addresses[current_device_index][3],
+             ble_mac_addresses[current_device_index][4], ble_mac_addresses[current_device_index][5]);
 }

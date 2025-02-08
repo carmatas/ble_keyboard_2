@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 
-extern int current_device_index;
+extern int32_t current_device_index;
 // Initializes BLE HID keyboard
 void ble_hid_keyboard_init();
 

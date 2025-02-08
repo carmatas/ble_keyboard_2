@@ -12,7 +12,7 @@ bool ble_connected = false; // Initially false, will be set true when BLE connec
 
 static led_strip_handle_t led_strip;
 
-extern int current_device_index;
+extern int32_t current_device_index;
 
 
 TaskHandle_t led_task_handle = NULL; // Store task handle

@@ -179,7 +179,8 @@ void configure_reset_button() {
 void check_reset_button_task(void *pvParameter) {
     while (1) {
         if (gpio_get_level(RESET_BUTTON_GPIO) == 0) {  // Button pressed
-            ESP_LOGI("RESET", "Button Pressed! Restarting ESP32...");
+            ESP_LOGI("RESET", "Button Pressed! Saving nex mac to memory and Restarting ESP32...");
+            set_next_mac_address() ;
             vTaskDelay(pdMS_TO_TICKS(100)); // Small debounce delay
             esp_restart();  // Force restart
         }
