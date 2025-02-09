@@ -76,19 +76,19 @@ static bool send_volum_up = false;
 
 static void hidd_event_callback(esp_hidd_cb_event_t event, esp_hidd_cb_param_t *param);
 
-#define HIDD_DEVICE_NAME            "HID v2"
+#define HIDD_DEVICE_NAME            "HID zero"
 
 extern bool ble_connected; // Make it accessible
 extern TaskHandle_t led_task_handle;
 
 
 
-// Predefined MAC addresses (Modify these as needed)
-static uint8_t ble_mac_addresses[MAX_MAC_ADDRESSES][6] = {
-        {0xCC, 0xBA, 0x97, 0x0A, 0x1B, 0x41},  // Computer 1
-        {0xCC, 0xBA, 0x97, 0x0A, 0x1B, 0x3D},  // Computer 2
-        {0xCC, 0xBA, 0x97, 0x0A, 0x1B, 0x3E}   // Computer 3
-};
+    // Predefined MAC addresses (Modify these as needed)
+    static uint8_t ble_mac_addresses[MAX_MAC_ADDRESSES][6] = {
+            {0xCC, 0xBA, 0x97, 0x0A, 0x1B, 0x51},  // Computer 1
+            {0xCC, 0xBA, 0x97, 0x0A, 0x1B, 0x61},  // Computer 2
+            {0xCC, 0xBA, 0x97, 0x0A, 0x1B, 0x71}   // Computer 3
+    };
 
 int32_t current_device_index = 0;
 

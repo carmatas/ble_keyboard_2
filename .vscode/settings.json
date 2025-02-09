@@ -4,6 +4,6 @@
     "idf.openOcdConfigs": [
         "board/esp32s3-bridge.cfg"
     ],
-    "idf.port": "/dev/ttyACM0",
+    "idf.port": "/dev/ttyACM1",
     "idf.toolsPath": "/home/xristos678/.espressif"
 }

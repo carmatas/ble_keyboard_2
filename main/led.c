@@ -5,8 +5,8 @@
 #define LED_BRIGHTNESS 5  // Scale from 0 (off) to 255 (full brightness)
 #define BLINK_INTERVAL_MS 500  // Blink interval in milliseconds
 
-// #define LED_WS2812_PIN GPIO_NUM_21  // Waveshare ESP32-S3-Zero WS2812 LED Pin
-#define LED_WS2812_PIN GPIO_NUM_48  // Waveshare ESP32-S3-Zero WS2812 LED Pin
+#define LED_WS2812_PIN GPIO_NUM_21  // Waveshare ESP32-S3-Zero WS2812 LED Pin
+//#define LED_WS2812_PIN GPIO_NUM_48  // Waveshare ESP32-S3-Zero WS2812 LED Pin
 
 bool ble_connected = false; // Initially false, will be set true when BLE connects
 
