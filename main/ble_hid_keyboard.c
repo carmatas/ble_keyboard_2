@@ -38,6 +38,7 @@
 #include "nvs_flash.h"
 #include "nvs.h"
 #include "esp_log.h"
+#include "led.h"
 /**
  * Brief:
  * This example Implemented BLE HID device profile related functions, in which the HID device
@@ -255,6 +256,7 @@ void ble_hid_keyboard_init()
             nvs_close(nvs_handle);
         }
 
+            start_led();
 
         ESP_ERROR_CHECK(esp_base_mac_addr_set(ble_mac_addresses[current_device_index]));
 

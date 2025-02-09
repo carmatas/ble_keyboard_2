@@ -292,7 +292,9 @@ static const uint16_t bat_lev_uuid = ESP_GATT_UUID_BATTERY_LEVEL;
 static const uint8_t   bat_lev_ccc[2] ={ 0x00, 0x00};
 static const uint16_t char_format_uuid = ESP_GATT_UUID_CHAR_PRESENT_FORMAT;
 
-static uint8_t battary_lev = 50;
+
+static uint8_t battary_lev = 75;
+
 /// Full HRS Database Description - Used to add attributes into the database
 static const esp_gatts_attr_db_t bas_att_db[BAS_IDX_NB] =
 {
@@ -746,6 +748,14 @@ void hidd_get_attr_value(uint16_t handle, uint16_t *length, uint8_t **value)
     }
 
     return;
+}
+
+
+uint8_t get_battery_level() {
+    // Simulate a battery level (e.g., decrementing from 100% to 0%)
+    static uint8_t simulated_level = 100;
+    simulated_level = (simulated_level > 0) ? simulated_level - 1 : 100;
+    return simulated_level;
 }
 
 static void hid_add_id_tbl(void)

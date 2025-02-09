@@ -768,7 +768,6 @@ void app_main(void)
     // Create queue
     app_event_queue = xQueueCreate(10, sizeof(app_event_queue_t));
 
-    start_led();
 //   xTaskCreate(ws2812_blink_task, "LED Task", 4096, NULL, 2, &led_task_handle);
 
         configure_reset_button();
