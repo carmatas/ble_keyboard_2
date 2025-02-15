@@ -768,10 +768,10 @@ void app_main(void)
     // Create queue
     app_event_queue = xQueueCreate(10, sizeof(app_event_queue_t));
 
-//   xTaskCreate(ws2812_blink_task, "LED Task", 4096, NULL, 2, &led_task_handle);
 
-        configure_reset_button();
-            xTaskCreate(check_reset_button_task, "reset_task", 2048, NULL, 2, NULL);
+//gpio7 
+        // configure_reset_button();
+        //     xTaskCreate(check_reset_button_task, "reset_task", 2048, NULL, 2, NULL);
 
     // Initialize BLE HID keyboard
         ble_hid_keyboard_init();
@@ -783,15 +783,20 @@ void app_main(void)
         if (xQueueReceive(app_event_queue, &evt_queue, portMAX_DELAY)) {
             if (APP_EVENT == evt_queue.event_group) {
                 // User pressed button
-                usb_host_lib_info_t lib_info;
-                ESP_ERROR_CHECK(usb_host_lib_info(&lib_info));
-                if (lib_info.num_devices == 0) {
-                    // End while cycle
-                    break;
-                } else {
-                    ESP_LOGW(TAG, "To shutdown example, remove all USB devices and press button again.");
-                    // Keep polling
-                }
+//                usb_host_lib_info_t lib_info;
+//                ESP_ERROR_CHECK(usb_host_lib_info(&lib_info));
+//                if (lib_info.num_devices == 0) {
+//                    // End while cycle
+//                    break;
+//                } else {
+//                    ESP_LOGW(TAG, "To shutdown example, remove all USB devices and press button again.");
+//                    // Keep polling
+//                }
+
+                ESP_LOGI("BOOT BUTTON", "Button Pressed! Saving next mac to memory and Restarting ESP32...");
+                            set_next_mac_address() ;
+                            vTaskDelay(pdMS_TO_TICKS(100)); // Small debounce delay
+                            esp_restart();  // Force restart
             }
 
             if (APP_EVENT_HID_HOST ==  evt_queue.event_group) {
